@@ -7,6 +7,6 @@ Beginners should start by reading Whats_A_Syscall, and advanced users can jump s
 
 Writeups in this series:
 1. Whats_A_Syscall? (67 solves, 100 points): Logging into the system and escape the infinite `binexec` loop. Contains basic information needed to understand writeups later in this series.
-2. Kernel_Memory_Leak (5 solves, 300 points): _Bonus_: Not privilege escalation related. Not required for the next exploit, but interested people can read this.
-3. Crazy_Caches (8 solves, 500 points): Escape the sandbox and become a normal user named `user`
-4. [Kernel::Run_it_as_Root](Kernel_Run_As_Root.md) (3 Solves, 666 points): Become the superuser: `root`
+2. Crazy_Caches (8 solves, 500 points): Escape the sandbox and become a normal user named `user`
+3. [Kernel::Run_it_as_Root](Kernel_Run_As_Root.md) (3 Solves, 666 points): Become the superuser: `root`
+<!-- n. Kernel_Memory_Leak (5 solves, 300 points): _Bonus_: Not privilege escalation related. Not required for the next exploit, but interested people can read this. -->

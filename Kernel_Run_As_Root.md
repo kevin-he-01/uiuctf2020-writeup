@@ -32,7 +32,7 @@ Since the challenge asks us to find a bug in the kernel memory allocator, these 
 
 > This page may contain program data from previous programs, or from other places the kernel uses the allocator. The new program is read into memory, overwriting the old data. **However, if an old program was larger than the new one, remnants of its memory may still be present in the page!** (You can’t assume all memory is initialized to 0). Returns -1 on failure (cannot execute program). 
 
-I **bolded** the part that is interesting, and I will illustrate it with an example using only ASCII characters and human readable instructions:
+I **bolded** the part that documents the uninitialized memory bug we need to exploit, and I will illustrate it with an example using only ASCII characters and human readable instructions:
 
 Let's say when program A just exited, its memory looks like this:
 ```
@@ -53,10 +53,26 @@ Due to the nature of ELF format of pwnyOS, if program B behaves correctly, its e
 
 Now comes the difficult part: how can we find the pair of programs in pwnyOS that allows you to run a program as root? Looking at page 7 of the [Getting Started Guide](https://github.com/sigpwny/pwnyOS-2020-docs/blob/master/Getting_Started.pdf) for pwnyOS titled "pwnyOS **Executables**", I discovered that pwnyOS uses the same executable format as Linux and some other Unix systems: [ELF](https://en.wikipedia.org/wiki/Executable_and_Linkable_Format), but it extends the ELF header to allow privileged binaries similar to the [setuid bit](https://en.wikipedia.org/wiki/Setuid) for Linux executables. While standard ELF files (those found in Linux) starts with these 4 bytes: `7F 45 4C 46`, the first byte of pwnyOS binary can be something other than `7F`: it can be `0x80 + uid` where `uid` specifies the user id of the user it should always be run at (regardless of the current permission of the user running the program, like setuid binaries). For example, a program starting with `82 45 4C 46` would be ran as the `sandb0x` user, whose UID is 2. Therefore, a binary starting with `80 45 4C 46` would always be ran as `root` whose UID is 0.
 
-Now back to our first question about finding a pair of programs that allows we to escalate to the superuser. Ideally, we would want program A (The old program) to be `rash` and program B (The new program) to be a file that starts with a single byte: `0x80`. Sadly, I will tell you that there is no such program B, and due to the read-only nature of its filesystem, you cannot even create it, but not all hope are lost. There is indeed an indirect way of achieving basically the same task!
+Now back to our first question about finding a pair of programs that allows we to escalate to the superuser. Ideally, we would want program A (The old program) to be `rash`, `binexec`, or any program we have control over and program B (The new program) to be a file that starts with a single byte: `0x80`. Sadly, I will tell you that there is no such program B, and due to the read-only nature of its filesystem, you cannot even create it, but not all hope are lost. There is indeed an indirect way of achieving basically the same task!
 
 ### The modified program B: `MMAP` and an empty file
 Again, quoting from the `EXEC` syscall documentation:
 > This page may contain program data from previous programs, **or from other places the kernel uses the allocator**.
 
-Note that in addition to program B overwriting the contents of the executable, we can also modify the remnants of program A directly. This requires we to use `MMAP` to "steal" a page from the kernel that contains the memory content of program A (`rash` in this case) after it quits. We then modify the first byte to `0x80` instead of `0x7f` and returns the page to the kernel by exiting
+Since `MMAP` shares the same 4MB page allocator as `EXEC`, this means that memory remaining in the page returned by `MMAP` (or `EXEC`) by process C can be seen by the first process that uses `MMAP` _or_ `EXEC` after process C. This allows us to simulate the effect of loading program B by changing the first byte of a page obtained from `MMAP` (after running program A) to `0x80`, exiting, and then instructing the kernel to execute the content of the `MMAP`'d page. 
+
+While the first 2 steps are trivial to perform in `binexec`, the last step &mdash; instructing the kernel to execute the page &mdash; is more difficult: it requires executing an empty file. When th kernel executes an empty file, nothing is written into the uninitialized page so the kernel will execute whatever was left in the page before.
+
+Luckily, the solution lies in a file that is commonly overlooked. By running `ls` inside `user`'s home directory `/user/`, I discovered a strangely useless file: `.gitignore`. By running `cat .gitignore`, I almost expect some secrets to be inside there that would help me get to root. But instead, I get an empty file.
+
+Indeed, the pwnyOS team tried hard to obfuscate the importance of its files. A non-suspecting user might think that `.gitignore` may just be a file the pwnyOS team unintentionally introduced into the system (Like `.DS_Store` in zip archives made in macOS). But looking into pwnyOS's documentation, it says:
+> All files in pwnyOS have a purpose- if you see a file, it is there for a reason. 
+
+And yes, `/user/.gitignore` is not an exception.
+
+## Running the exploit
+
+TODO
+
+## End Note
+Uninitialized memory is a seemingly innocent bug that can lead to dangerous security vulnerabilities. It is especially common in system programming languages such as C/C++ and assembly, all of which are commonly used in writing kernel code. Relying on uninitialized memory has led to the [Debian/OpenSSL Fiasco](https://research.swtch.com/openssl) which has silently generated several insecure OpenSSL keys that may still be present in critical systems today. The moral of this privilege escalation exploit is to never _ever_ leave allocated memory uninitialized.
