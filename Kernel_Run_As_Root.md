@@ -139,7 +139,11 @@ And voilà! I get a root shell, which allows me to get the flag for this challen
 ## Meddling around in the root shell
 
 The pwnyOS's author (ravi) decided to put a lot of interesting files inside `/prot/` that is visible only by root:
+<<<<<<< HEAD
 - `/prot/passwd`: Contains the passwords (in plaintext!) for every user on this system (`root`, `user`, and `sandb0x`) I won't post them here so that it won't spoil the fun for people wanting to try this. Having the root password allows you to bypass the steps above and go straight from `user` to `root` via `su` or `SWITCH_USER` syscall (though you can only log into `sandb0x` and not any other user at the initial login screen)
+=======
+- `/prot/passwd`: Contains the passwords (in plaintext!) for every user on this system (`root`, `user`, and `sandb0x`) I won't post them here so that it won't spoil the fun for you guys. Having root's password allows you to bypass hte steps above and go straight from `user` to `root` via `su` or `SWITCH_USER` syscall (though you can only log into `sandb0x` and not any other user at the initial login screen)
+>>>>>>> 4af78198b0ce0177eb88992141d01b99baf3fc87
 - `/prot/crazy_caches`: Contains the binary for the Crazy_Caches challenge
 - `/prot/intros`: Contains the binaries for intro level challenges
 - `/prot/images/`: Folder with the desktop background image in various resolutions
