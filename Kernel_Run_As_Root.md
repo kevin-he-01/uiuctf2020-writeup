@@ -146,8 +146,8 @@ The pwnyOS's author (ravi) decided to put a lot of interesting files inside `/pr
 
 ## Resources
 
-I wrote a script in Windows PowerShell to automate the task of typing long shellcodes into binexec. I also made a script to automatically gain root privileges from the login screen by performing exploits step-by-step.
-<!-- TODO: add link to this script -->
+I wrote a script in Windows PowerShell to automate the task of typing long shellcodes into binexec using the keyboard. I also made a script to automatically gain root privileges from the login screen by performing exploits step-by-step. They are stored in `script/`.
+<!-- TODO: add Github link -->
 
 ## Final Thoughts
 Uninitialized memory is a seemingly innocent bug that can lead to dangerous security vulnerabilities. It is especially common in system programming languages such as C/C++ and assembly, all of which are commonly used in writing kernel code. Relying on uninitialized memory has led to the [Debian/OpenSSL Fiasco](https://research.swtch.com/openssl) which has silently generated several insecure OpenSSL keys that may still be present in critical systems today. The moral of this privilege escalation exploit is to never _ever_ leave allocated memory uninitialized.
