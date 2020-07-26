@@ -75,7 +75,7 @@ And yes, `/user/.gitignore` is not an exception.
 To start, we need a `binexec` prompt. If you have just completed the previous `crazy_caches` challenge, please close the binexec prompt and reopen it with the new `rash` running at `user`-level permissions. Not doing that will result in "Sandbox Policy Prevents that!" error messages due to insufficient privileges
 
 Then we need to write some shellcode:
-```x86asm
+```asm
 .arch x86 ; pwnyOS is a 32-bit OS running on Intel x86 architecture
 .bits 32
 
@@ -110,10 +110,10 @@ b801000000bbade00408cd80c32f757365722f2e67697469676e6f726500
 ```
 
 Source for the shellcode (with comments): 
-```x86asm
+```asm
 .arch x86
 .bits 32
-.org 0x0804e0a0 ; If the address binexec will run your program is not this value, REPLACE with the address you got. This line sets the address for the first instruction so that labels work correctly
+.org 0x0804e0a0 ; If the address binexec will run your program is not this value, REPLACE with the address you get. This line sets the address for the first instruction so that labels work correctly
 
 mov eax, 1 ; syscall number for EXEC
 mov ebx, gitignore ; the first argument to EXEC(char *filename_to_exec)
