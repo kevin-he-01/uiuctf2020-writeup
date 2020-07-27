@@ -145,7 +145,7 @@ The pwnyOS's author (ravi) decided to put a lot of interesting files inside `/pr
 
 ## Resources
 
-I wrote a script in Windows PowerShell to automate the task of typing long shellcodes into binexec using the keyboard. I also made a script to automatically gain root privileges from the login screen by performing exploits step-by-step. They are stored in [`script/`](https://github.com/kevin-he-01/uiuctf2020-writeup/tree/master/scripts).
+I wrote a script in Windows PowerShell to automate the task of typing long shellcodes into binexec using the keyboard. I also made a script to automatically gain root privileges from the login screen by performing exploits step-by-step. They are stored in [`scripts/`](scripts/).
 <!-- TODO: add Github link -->
 
 ## Final Thoughts

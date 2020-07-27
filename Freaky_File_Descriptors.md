@@ -57,7 +57,7 @@ But using this shellcode, I got the same result obtained from `cat`, except for 
 
 ![Nothing is read past the end of the file](assets/freaky-fd-fail.png)
 
-I thought that the reason it failed was because part of the buffer after the shellcode was not writable by the process so `READ` had ignored it for security reasons, so I tried again but this time initializing the content after label `buffer:` with underscores, which can be done simply by appending 500 `5f`'s (ASCII code for underscore) to the end of the shellcode (will be referred to as _Shellcode B_). To speed up this process (avoid manual typing), I used some PowerShell scripts which can be found in [`scripts/`](https://github.com/kevin-he-01/uiuctf2020-writeup/tree/master/scripts) in this repository.
+I thought that the reason it failed was because part of the buffer after the shellcode was not writable by the process so `READ` had ignored it for security reasons, so I tried again but this time initializing the content after label `buffer:` with underscores, which can be done simply by appending 500 `5f`'s (ASCII code for underscore) to the end of the shellcode (will be referred to as _Shellcode B_). To speed up this process (avoid manual typing), I used some PowerShell scripts which can be found in [`scripts/`](scripts/) in this repository.
 
 After bombarding the screen with `5f`, I cannot believe my eyes:
 
