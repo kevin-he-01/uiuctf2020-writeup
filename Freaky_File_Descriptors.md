@@ -59,7 +59,7 @@ But using this shellcode, I got the same result obtained from `cat`, except for 
 
 I thought that the reason it failed was because part of the buffer after the shellcode was not writable by the process so `READ` had ignored it for security reasons, so I tried again but this time initializing the content after label `buffer:` with underscores, which can be done simply by appending 500 `5f`'s (ASCII code for underscore) to the end of the shellcode (will be referred to as _Shellcode B_). To speed up this process (avoid manual typing), I used some PowerShell scripts which can be found in [`scripts/`](scripts/) in this repository.
 
-After bombarding the screen with `5f`, I cannot believe my eyes:
+After bombarding the screen with `5f`, I couldn't believe my eyes:
 
 ![The flag with underscores after it](assets/freaky-fd.png)
 
@@ -115,11 +115,11 @@ To eliminate the current system state as a variable, I rebooted the whole system
 
 ### The results
 
-Trial A (running _Shellcode A_ twice) yields the exact same result as if I ran _Shellcode A_ and then _Shellcode B_ as I did while the CTF is running. This concludes that calling `OPEN` twice alone is enough to make `READ` leak the flag, but does memory initialization alone also do the job?
+Trial A (running _Shellcode A_ twice) produced the exact same result as if I ran _Shellcode A_ and then _Shellcode B_ as I did while the CTF is running. This concluded that calling `OPEN` twice alone is enough to make `READ` leak the flag, but does memory initialization alone also do the job?
 
-Running trial B (running _Shellcode B_ once), which initialize memory with `5f`s, gives me no flag at all, with underscores in the redacted part. This shows that memory initialization plays no role at all and filling `5f`s as I did during the CTF is completely superfluous.
+Running trial B (running _Shellcode B_ once), gave me no flag at all, with underscores in the redacted part. This proved that memory initialization plays no role at all and filling `5f`s as I did during the CTF was completely superfluous.
 
-Trial C does not give me the flag, even though I ran _Shellcode C_ twice, this shows that properly closing a file before opening it again in the same process will not trigger the bug that causes the flag to be leaked.
+Trial C did not give me the flag, even though I ran _Shellcode C_ twice, this showed that properly closing a file before opening it again in the same process will not trigger the flag-leaking bug.
 
 ## End Notes
 There are 13 solves to this 400 point challenge (compared to only 5 solves in Kernel_Memory_Leak which is 300 points), which seems quite surprising. Even the contest managers imaged that people might be utilizing a bug that would qualify as a Small Oops. My explanation for this solve number is that most people, like me, wrote a buggy program that did not properly close a file descriptor and ran it again in the same `binexec` session after making unnecessary modifications (or no modifications at all). So future CTF makers have to be careful in designing problems that are difficult to solve not only by valid programs but also by buggy programs.
