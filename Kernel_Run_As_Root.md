@@ -1,7 +1,7 @@
 # Exploiting a useless file to perform a useful task
 **Writeup Author:** Kevin He (Username `trinary-exploitation`)  
 **Category:** Kernel Exploitation
-> ## Kernel::Run_it_as_Root
+> ## Kernel::Run_it_as_Root (3 solves, 666 points)
 > There's a bug with uninitialized memory in the kernel page allocator. Can you find a way to exploit this bug with your new user-level permissions to execute rash as root (UID 0)?
 >
 > Prerequisite: this challenge requires a UID of 1 to complete, so you need to solve `crazy_caches` first.

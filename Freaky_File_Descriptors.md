@@ -1,7 +1,7 @@
 # How a buggy program solves a 400 point challenge
 **Writeup Author:** Kevin He (Username `trinary-exploitation`)  
 **Category:** Kernel Exploitation
-> ## Freaky_File_Descriptors
+> ## Freaky_File_Descriptors (13 solves, 400 points)
 > How does the OS know what bytes to give you when you call read? How does it keep track of how far you've read into a file?
 > 
 > Find an exploit that lets you read past the end of /sandb0x/freaky_fds.txt and see what was truncated!
