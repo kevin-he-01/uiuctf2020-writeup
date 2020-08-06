@@ -1,15 +1,15 @@
 # Running a powerless file to perform a powerful task
 How I defeated UIUCTF 2020's brand new pwnyOS via an uninitialized memory bug, and by executing the most innocent file on the system.  
 
-![Login Screen](assets/login-empty.png)
+![Login screen showing a beach background with a message: "Welcome to your Island Adventure! Please enjoy your stay"](assets/login-empty.png)
 
 This year, [UIUC's SigPwny team](https://sigpwny.github.io/) released their CTF (UIUCTF) with a brand new series of challenges: Kernel Exploitation. A great deal of effort (thanks to Ravi) was put into developing a brand new operating system just for these challenges &mdash; pwnyOS! I was thrilled about such challenges when the CTF just started, when I can't wait for them to deploy their virtual machines.
 
 I will not go over how to log into the system and get from a sandbox user (the user you can log into as) to a regular user, but instead focusing on how to elevate from a regular user to the superuser, or the administrator of the system.
 
-Despite pwnyOS's fancy outlook, after logging in I realized that it is basically a command line interface wrapped in a translucent "Terminal" window. Everything can be done via a keyboard, and only a keyboard. Indeed, the system is not responsive to any mouse inputs at all. In addition, most exploitation are not even done by running commands in the shell (`rash`, which is a much more restricted shell compared to `bash`), it is instead done by typing shellcodes into `binexec`, a program that executes raw 32 bit Intel x86 instructions in a hexadecimal string.
+Despite pwnyOS's fancy outlook, after logging in I realized that it is basically a command line interface wrapped in a translucent "Terminal" window. Everything can be done via a keyboard, and only a keyboard. Indeed, the system is not responsive to any mouse inputs at all. In addition, most exploitations are not even done by running commands in the shell (`rash`, which is a much more restricted shell compared to `bash`), they are instead done by typing shellcodes into `binexec`, a program that executes raw 32 bit Intel x86 instructions in a hexadecimal string.
 
-An example session containing `rash` and `binexec` running a shellcodes that elevates privilege from sandbox to user:
+An example session containing `rash` and `binexec` running a piece of shellcode that elevates privilege from sandbox to user:
 
 ![rash, binexec, shellcode, and the Crazy_Caches flag](assets/crazy-cache-translation-lookahead.png)
 
@@ -63,9 +63,9 @@ Due to the nature of ELF format of pwnyOS, if program B is a correctly behaving 
 
 ## Finding Program A and B on pwnyOS
 
-Now comes the difficult part: how can we find the pair of programs in pwnyOS that allows us to run a program as root? Looking at page 7 of the [Getting Started Guide](https://github.com/sigpwny/pwnyOS-2020-docs/blob/master/Getting_Started.pdf) for pwnyOS titled "pwnyOS **Executables**", I discovered that pwnyOS uses the same executable format as Linux and some other Unix systems ([ELF](https://en.wikipedia.org/wiki/Executable_and_Linkable_Format)), but it extends the ELF header to allow privileged binaries similar to the [setuid bit](https://en.wikipedia.org/wiki/Setuid) for Linux executables. While standard ELF files (those found in Linux) starts with these 4 bytes in hex: `7F 45 4C 46`, the first byte of a pwnyOS binary can be something other than `0x7F`: it can be `0x80 + uid` where `uid` specifies the user id of the user it should always be run at (regardless of the current permission of the user running the program, like setuid binaries). For example, a program starting with `82 45 4C 46` would be ran as the `sandb0x` user, whose UID is 2. Therefore, a binary starting with `80 45 4C 46` would always be ran as `root` whose UID is 0.
+Now comes the difficult part: how can we find the pair of programs in pwnyOS that allows us to run a program as root? Looking at page 7 of the [Getting Started Guide](https://github.com/sigpwny/pwnyOS-2020-docs/blob/master/Getting_Started.pdf) for pwnyOS titled "pwnyOS **Executables**", I discovered that pwnyOS uses the same executable format as Linux and some other Unix systems ([ELF](https://en.wikipedia.org/wiki/Executable_and_Linkable_Format)), but it extends the ELF header to allow privileged binaries similar to the [setuid bit](https://en.wikipedia.org/wiki/Setuid) for Linux executables. While standard ELF files (those found in Linux) starts with these 4 bytes in hex: `7F 45 4C 46`, the first byte of a pwnyOS binary can be something other than `0x7F`: it can be `0x80 + uid` where `uid` specifies the user id of the user it should always be run at (regardless of the current permission of the user running the program, like setuid binaries). For example, a program starting with `82 45 4C 46` would be run as the `sandb0x` user, whose UID is 2. Therefore, a binary starting with `80 45 4C 46` would always be run as `root` whose UID is 0.
 
-Now back to our first question about finding a pair of programs that allows we to escalate to the superuser. Ideally, we would want program A (The old program) to be `rash`, `binexec`, or any program we have control over and program B (The new program) to be a file that starts with a single byte: `0x80`. Sadly, I will tell you that there is no such program B, and due to the read-only nature of its filesystem, we cannot even create it, but not all hope are lost. There is indeed an indirect way of achieving basically the same task!
+Now back to our first question about finding a pair of programs that allows us to escalate to the superuser. Ideally, we would want program A (The old program) to be `rash`, `binexec`, or any program we have control over and program B (The new program) to be a file that starts with a single byte: `0x80`. Sadly, I will tell you that there is no such program B, and due to the read-only nature of its filesystem, we cannot even create it, but not all hope is lost. There is indeed an indirect way of achieving basically the same task!
 
 ### The modified program B: `MMAP` and an empty file
 Again, quoting from the `EXEC` syscall documentation:
@@ -73,7 +73,7 @@ Again, quoting from the `EXEC` syscall documentation:
 
 Since `MMAP` shares the same 4MB page allocator as `EXEC`, this means that a program can view and edit the previously freed page of some exited process by performing the `MMAP` syscall. This allows us to simulate the effect of loading program B by changing the first byte of a page obtained from `MMAP` (after running program A) to `0x80`, exiting, and then instructing the kernel to execute the content of the `MMAP`'d page. 
 
-While the first 2 steps are trivial to perform in `binexec`, the last step &mdash; instructing the kernel to launch a new process that executes the `MMAP` page &mdash; is more difficult: it requires executing an empty file. When th kernel executes an empty file, nothing is written into the uninitialized page so the kernel will execute whatever was left in the page before.
+While the first 2 steps are trivial to perform in `binexec`, the last step &mdash; instructing the kernel to launch a new process that executes the `MMAP` page &mdash; is more difficult: it requires executing an empty file. When the kernel executes an empty file, nothing is written into the uninitialized page so the kernel will execute whatever was left in the page before.
 
 Luckily, the solution lies in a file that is commonly overlooked. By running `ls` inside `user`'s home directory `/user/`, I discovered a strangely useless file: `.gitignore`. By running `cat .gitignore`, I almost expect some secrets to be inside there that would help me get to root. But instead, I get an empty file.
 
@@ -97,12 +97,12 @@ mov byte [eax], 0x80
 ret
 ```
 Let's dissect this shellcode line by line:  
-1. `mov eax, 13 `: this sets eax to 13, the syscall number for MMAP.
-2. `int 0x80 `: As the self-explanatory comment `; MMAP` suggests, it performs the actual system call `MMAP` by triggering interrupt number `0x80` in the CPU. This interrupt is handled by the pwnyOS kernel where the memory manager resides. Unlike user mode processes, the kernel and the memory manager can interact directly with hardware and write to any possible physical memory location, including the table that specifies the mapping between virtual address (the addresses user mode process sees) and the physical address (the actual location inside the hardware RAM module). `MMAP` maps some currently unused physical address to virtual address `0x0D048000` which is returned to the caller by setting `eax` to this value.
-3. `mov byte [eax], 0x80 `: Sets the first byte of the page obtained from `MMAP` to `0x80`. Before this line the page should contain a normal ELF header (`7F 45 4C 46`). After this line the header will be `80 45 4C 46`, which will make the kernel run the code afterwards as `root`.
-4. `ret `: end the shellcode and return back to `binexec`
+1. `mov eax, 13`: this sets eax to 13, the syscall number for MMAP.
+2. `int 0x80`: As the self-explanatory comment `; MMAP` suggests, it performs the actual system call `MMAP` by triggering interrupt number `0x80` in the CPU. This interrupt is handled by the pwnyOS kernel where the memory manager resides. Unlike user mode processes, the kernel and the memory manager can interact directly with hardware and write to any possible physical memory location, including the table that specifies the mapping between virtual address (the addresses user mode process sees) and the physical address (the actual location inside the hardware RAM module). `MMAP` maps some currently unused physical address to virtual address `0x0D048000` which is returned to the caller by setting `eax` to this value.
+3. `mov byte [eax], 0x80`: Sets the first byte of the page obtained from `MMAP` to `0x80`. Before this line the page should contain a normal ELF header (`7F 45 4C 46`). After this line the header will be `80 45 4C 46`, which will make the kernel run the code afterwards as `root`.
+4. `ret`: end the shellcode and return back to `binexec`
 
-I saved the file as `exploit.rasm` and assembled it with `rasm2`, a  assembler that outputs hex from [Radare2](https://github.com/radareorg/radare2).
+I saved the file as `exploit.rasm` and assembled it with `rasm2`, an assembler that outputs hex from [Radare2](https://github.com/radareorg/radare2).
 ```
 rasm2 -f exploit.rasm
 ```
@@ -137,7 +137,7 @@ gitignore:
 
 So after several rounds of running `/user/.gitignore` in `rash` and that shellcode in `binexec`, I finally reached root.
 After getting to root, my machine looks like this:
-![titlebar showing root on the left and SUPERUSER on the right](assets/root-titlebar.png)
+![Title bar showing root on the left and SUPERUSER on the right](assets/root-titlebar.png)
 
 In this case, I become root inside `binexec` rather than `rash`, so I have to run `rash` inside `binexec`, but this is trivial: just change the filename after `.string` in the previous shellcode to `"/bin/rash"` instead of `"/user/.gitignore"` and compile the shellcode again:
 ```
