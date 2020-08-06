@@ -1,18 +1,31 @@
-# Exploiting a useless file to perform a useful task
-**Writeup Author:** Kevin He (Username `trinary-exploitation`)  
-**Category:** Kernel Exploitation
-> ## Kernel::Run_it_as_Root (3 solves, 666 points)
+# Running a powerless file to perform a powerful task
+How I defeated UIUCTF 2020's brand new pwnyOS via an uninitialized memory bug, and by executing the most innocent file on the system.  
+
+![Login Screen](assets/login-empty.png)
+
+This year, [UIUC's SigPwny team](https://sigpwny.github.io/) released their CTF (UIUCTF) with a brand new series of challenges: Kernel Exploitation. A great deal of effort (thanks to Ravi) was put into developing a brand new operating system just for these challenges &mdash; pwnyOS! I was thrilled about such challenges when the CTF just started, when I can't wait for them to deploy their virtual machines.
+
+I will not go over how to log into the system and get from a sandbox user (the user you can log into as) to a regular user, but instead focusing on how to elevate from a regular user to the superuser, or the administrator of the system.
+
+Despite pwnyOS's fancy outlook, after logging in I realized that it is basically a command line interface wrapped in a translucent "Terminal" window. Everything can be done via a keyboard, and only a keyboard. Indeed, the system is not responsive to any mouse inputs at all. In addition, most exploitation are not even done by running commands in the shell (`rash`, which is a much more restricted shell compared to `bash`), it is instead done by typing shellcodes into `binexec`, a program that executes raw 32 bit Intel x86 instructions in a hexadecimal string.
+
+An example session containing `rash` and `binexec` running a shellcodes that elevates privilege from sandbox to user:
+
+![rash, binexec, shellcode, and the Crazy_Caches flag](assets/crazy-cache-translation-lookahead.png)
+
+## The Challenge
+> ### Kernel::Run_it_as_Root (3 solves, 666 points)
 > There's a bug with uninitialized memory in the kernel page allocator. Can you find a way to exploit this bug with your new user-level permissions to execute rash as root (UID 0)?
 >
 > Prerequisite: this challenge requires a UID of 1 to complete, so you need to solve `crazy_caches` first.
 >
 > Author: ravi
 
-The first step to every Kernel Exploitation challenge is to read the [pwnyOS documentation](https://github.com/sigpwny/pwnyOS-2020-docs). Quoting from the documentation:
+The first step to every Kernel Exploitation challenge is to read the [pwnyOS documentation](https://github.com/sigpwny/pwnyOS-2020-docs). Quoting from the [Getting Started Guide](https://github.com/sigpwny/pwnyOS-2020-docs/blob/master/Getting_Started.pdf):
 > Our intention is that everything you
 need to complete these challenges is provided to you- no guessing is involved.
 
-This challenge is not an exception. Despite being worth 666 points, careful reading of the documentation and some basic understanding of x86 assembly is all we need to defeat the challenge. With that said, let's see what we can do with our newly gained user privilege from Crazy_Caches:
+This challenge is not an exception. Despite being worth 666 points, careful reading of the documentation and some basic understanding of x86 assembly is all we need to defeat the challenge. With that said, let's see what we can do with our newly gained user privilege from `Crazy_Caches` (the previous challenge):
 
 System calls available to `user` but not for `sandb0x` (with syscall numbers):
 - 10 `SWITCH_USER`
@@ -20,14 +33,14 @@ System calls available to `user` but not for `sandb0x` (with syscall numbers):
 - 12 `REMOTE_SETUSER`
 - 13 `MMAP`
 
-The first 3 syscalls are related to user management, but they are not enough to elevate you to root. They either require the correct root password (`SWITCH_USER` or `su` command) or require existing root privileges (`REMOTE_SETUSER`) in some process on the system. Unlike the previous `Crazy_Caches` challenge, there are no existing processes running as root (UID=0).
+The first 3 syscalls are related to user management, but they are not enough to elevate us to root. They either require the correct root password (`SWITCH_USER` or `su` command) or require existing root privileges (`REMOTE_SETUSER`) in some process on the system. Unlike the previous `Crazy_Caches` challenge, there are no existing processes running as root (UID=0).
 
 ## Discovering a memory allocation bug
 
 This left us with `MMAP`, which requests a 4MB page from the kernel memory allocator, but careful reading of the documentation reveals another reference to this same page allocator in the `EXEC` system call:
 > Start a new process- this call won’t exit until the called process calls SYSRET! This syscall returns the exit code the called process sent to SYSRET. Arguments are specified by a space-separated list after the filename. This uses the kernel 4MB page allocator to request a new page for the process.
 
-Since the challenge asks us to find a bug in the kernel memory allocator, `MMAP` and `EXEC` are going to be the key of our exploit. But before we move on, let's talk about how pwnyOS executable binaries are loaded into memory. Like other operating systems, executables are first loaded from disk into memory before it is executed. Since the kernel needs to make sure the memory of one program does not overlap with that of another program (otherwise privileged processes will leak sensitive data to or be controlled by other processes), it has to request a currently unused memory page for the new process. That is the job of the 4MB page allocator. However, the fact that the page is unused does not mean that it is always filled with zeros, the kernel _does not_ clean up after its processes by zero-filling their page. Again, quoting from the `EXEC` system call:
+Since the challenge asks us to find a bug in the kernel memory allocator, `MMAP` and `EXEC` are going to be the key of our exploit. But before we move on, let's talk about how pwnyOS executable binaries are loaded into memory. Like other operating systems, executables are first loaded from disk into memory before it is executed. Since the kernel needs to make sure the memory of one program does not overlap with that of another program (otherwise privileged processes will leak sensitive data to or be controlled by other processes), it has to request a currently unused memory page for the new process. That is the job of the 4MB page allocator. However, the fact that the page is unused does not mean that it is always filled with zeros, the kernel _does not_ clean up after its processes by zero-filling their page. Again, quoting from the [`EXEC` system call documentation](https://github.com/sigpwny/pwnyOS-2020-docs/blob/master/Syscalls.pdf):
 
 > This page may contain program data from previous programs, or from other places the kernel uses the allocator. The new program is read into memory, overwriting the old data. **However, if an old program was larger than the new one, remnants of its memory may still be present in the page!** (You can’t assume all memory is initialized to 0). Returns -1 on failure (cannot execute program). 
 
@@ -50,9 +63,9 @@ Due to the nature of ELF format of pwnyOS, if program B is a correctly behaving 
 
 ## Finding Program A and B on pwnyOS
 
-Now comes the difficult part: how can we find the pair of programs in pwnyOS that allows you to run a program as root? Looking at page 7 of the [Getting Started Guide](https://github.com/sigpwny/pwnyOS-2020-docs/blob/master/Getting_Started.pdf) for pwnyOS titled "pwnyOS **Executables**", I discovered that pwnyOS uses the same executable format as Linux and some other Unix systems ([ELF](https://en.wikipedia.org/wiki/Executable_and_Linkable_Format)), but it extends the ELF header to allow privileged binaries similar to the [setuid bit](https://en.wikipedia.org/wiki/Setuid) for Linux executables. While standard ELF files (those found in Linux) starts with these 4 bytes in hex: `7F 45 4C 46`, the first byte of a pwnyOS binary can be something other than `0x7F`: it can be `0x80 + uid` where `uid` specifies the user id of the user it should always be run at (regardless of the current permission of the user running the program, like setuid binaries). For example, a program starting with `82 45 4C 46` would be ran as the `sandb0x` user, whose UID is 2. Therefore, a binary starting with `80 45 4C 46` would always be ran as `root` whose UID is 0.
+Now comes the difficult part: how can we find the pair of programs in pwnyOS that allows us to run a program as root? Looking at page 7 of the [Getting Started Guide](https://github.com/sigpwny/pwnyOS-2020-docs/blob/master/Getting_Started.pdf) for pwnyOS titled "pwnyOS **Executables**", I discovered that pwnyOS uses the same executable format as Linux and some other Unix systems ([ELF](https://en.wikipedia.org/wiki/Executable_and_Linkable_Format)), but it extends the ELF header to allow privileged binaries similar to the [setuid bit](https://en.wikipedia.org/wiki/Setuid) for Linux executables. While standard ELF files (those found in Linux) starts with these 4 bytes in hex: `7F 45 4C 46`, the first byte of a pwnyOS binary can be something other than `0x7F`: it can be `0x80 + uid` where `uid` specifies the user id of the user it should always be run at (regardless of the current permission of the user running the program, like setuid binaries). For example, a program starting with `82 45 4C 46` would be ran as the `sandb0x` user, whose UID is 2. Therefore, a binary starting with `80 45 4C 46` would always be ran as `root` whose UID is 0.
 
-Now back to our first question about finding a pair of programs that allows we to escalate to the superuser. Ideally, we would want program A (The old program) to be `rash`, `binexec`, or any program we have control over and program B (The new program) to be a file that starts with a single byte: `0x80`. Sadly, I will tell you that there is no such program B, and due to the read-only nature of its filesystem, you cannot even create it, but not all hope are lost. There is indeed an indirect way of achieving basically the same task!
+Now back to our first question about finding a pair of programs that allows we to escalate to the superuser. Ideally, we would want program A (The old program) to be `rash`, `binexec`, or any program we have control over and program B (The new program) to be a file that starts with a single byte: `0x80`. Sadly, I will tell you that there is no such program B, and due to the read-only nature of its filesystem, we cannot even create it, but not all hope are lost. There is indeed an indirect way of achieving basically the same task!
 
 ### The modified program B: `MMAP` and an empty file
 Again, quoting from the `EXEC` syscall documentation:
@@ -71,7 +84,7 @@ And yes, `/user/.gitignore` is not an exception.
 
 ## Running the exploit
 
-To start, we need a `binexec` prompt. If you have just completed the previous Crazy_Caches challenge, please close the binexec prompt and reopen it with the new `rash` running at `user`-level permissions. Not doing that might result in "Sandbox Policy Prevents that!" error messages due to insufficient privileges of the binexec session.
+To start, we need a newly started instance of `binexec` prompt running as `user` (Regular User privilege).
 
 Then we need to write some shellcode:
 ```asm
@@ -101,9 +114,9 @@ Type those hex shellcodes into `binexec` and exit the program to return the `MMA
 
 **Warning:** I recommend running the shellcode in a newly started `binexec` session, and do not run it twice in one `binexec` session. Since each process, including `binexec`, can only request one page through `MMAP` in its lifetime, running the code after other a prior `MMAP` operation will return the `NULL` pointer (address `0`) and generate a segmentation fault when the last line tries to write to memory at address `0`.
 
-At this point, we have already planted the exploit and it is just waiting to be triggered when the kernel executes the page. However, the page we just returned may not be the only free page in the pwnyOS memory allocator. There are many programs that have exited before at this point, including the `binexec` loop in the sandbox and the `binexec` used to gain user privilege and solve Crazy_Caches. If you are following along this to get to root, I recommend saving all your exploit code used to escape the initial binexec loop and getting user level permissions, and then reboot. The less interference there are, the more likely (and faster) the exploit is going to succeed.
+At this point, we have already planted the exploit and it is just waiting to be triggered when the kernel executes the page. However, the page we just returned may not be the only free page in the pwnyOS memory allocator. There are many programs that have exited before at this point, including the `binexec` loop in the sandbox and the `binexec` used to gain user privilege and solve Crazy_Caches. To reduce the number of such pages, I rebooted the system and performed only necessary exploits to get to `user` before doing all the previous steps so that I can more easily get to the exploit page.
 
-The next step involves repeatedly running `/user/.gitignore` until we see `user` on the top left corner of the screen change to `root` indicating that the current process runs at root. In rash, I simply ran the command `/user/.gitignore` or `run /user/.gitignore`. But afterwards, I was dropped into a `binexec` session instead (since there are previously exited `binexec` processes). In this case, I ran this shellcode to execute `/user/.gitignore`:
+The next step involves repeatedly running `/user/.gitignore` until we reach the malicious page, where we will see `user` on the top left corner of the screen change to `root` indicating that the current process runs at root. In rash, I simply ran the command `/user/.gitignore` or `run /user/.gitignore`. But afterwards, I was dropped into a `binexec` session instead (since there are previously exited `binexec` processes). In this case, I ran this shellcode to execute `/user/.gitignore`:
 ```
 b801000000bbade00408cd80c32f757365722f2e67697469676e6f726500
 ```
@@ -112,7 +125,7 @@ Source for the shellcode (with comments):
 ```asm
 .arch x86
 .bits 32
-.org 0x0804e0a0 ; If the address binexec will run your program is not this value, REPLACE with the address you get. This line sets the address for the first instruction so that labels work correctly
+.org 0x0804e0a0 ; The address binexec will run the code. This line sets the address for the first instruction so that labels work correctly
 
 mov eax, 1 ; syscall number for EXEC
 mov ebx, gitignore ; the first argument to EXEC(char *filename_to_exec)
@@ -138,9 +151,9 @@ And voilà! I get a root shell, which allows me to get the flag for this challen
 ## Meddling around in the root shell
 
 The pwnyOS's author (ravi) decided to put a lot of interesting files inside `/prot/` that is visible only by root:
-- `/prot/passwd`: Contains the passwords (in plaintext!) for every user on this system (`root`, `user`, and `sandb0x`) I won't post them here so that it won't spoil the fun for people wanting to try this. Having the root password allows you to bypass the steps above and go straight from `user` to `root` via `su` or `SWITCH_USER` syscall (though you can only log into `sandb0x` and not any other user at the initial login screen)
+- `/prot/passwd`: Contains the passwords (in plaintext!) for every user on this system (`root`, `user`, and `sandb0x`) I won't post them here so that it won't spoil the fun for people wanting to try this. Having the root password allows bypassing the steps above and go straight from `user` to `root` via `su` or `SWITCH_USER` syscall (though the initial login screen only allows logging into `sandb0x` and no other users)
 - `/prot/crazy_caches`: Contains the binary for the Crazy_Caches challenge
-- `/prot/intros`: Contains the binaries for intro level challenges
+- `/prot/intros/`: Contains the binaries for intro level challenges
 - `/prot/images/`: Folder with the desktop background image in various resolutions
 
 ## Resources
@@ -149,4 +162,4 @@ I wrote a script in Windows PowerShell to automate the task of typing long shell
 <!-- TODO: add Github link -->
 
 ## Final Thoughts
-Uninitialized memory is a seemingly innocent bug that can lead to dangerous security vulnerabilities. It is especially common in system programming languages such as C/C++ and assembly, all of which are commonly used in writing kernel code. Relying on uninitialized memory has led to the [Debian/OpenSSL Fiasco](https://research.swtch.com/openssl) which has silently generated several insecure OpenSSL keys that may still be present in critical systems today. The moral of this privilege escalation exploit is to never _ever_ leave allocated memory uninitialized.
+Uninitialized memory is a seemingly innocent bug that can lead to dangerous security vulnerabilities. It is especially common in system programming languages such as C/C++ and assembly, all of which are commonly used in writing kernel code. Relying on uninitialized memory has led to the [Debian/OpenSSL Fiasco](https://research.swtch.com/openssl) which has silently generated several insecure OpenSSL keys that may still be present in critical systems today. The moral of this privilege escalation exploit? Initialize memory (Ex. zeroing it) immediately after allocating it. Don't rely on untrusted users or programs to do it for you.
